@@ -34,6 +34,8 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 .inst .ic{font-size:24px;display:block;margin-bottom:4px}
 .inst .num{display:block;font-size:11px;color:var(--mute);font-weight:400;margin-bottom:2px}
 .inst.sel{border-color:var(--acc);background:#3a2b1a;box-shadow:inset 0 0 0 1px var(--acc)}
+.inst.sel2{border-color:var(--acc2);background:#3a1f1d;box-shadow:inset 0 0 0 1px var(--acc2)}
+.inst.sel.sel2{background:linear-gradient(135deg,#3a2b1a 50%,#3a1f1d 50%)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px;-webkit-overflow-scrolling:touch}
 .chips button{flex:none;background:#26222b;border:1px solid var(--line);border-radius:20px;padding:7px 12px;font-size:13px;font-weight:600}
 .chips button.sel{background:var(--acc);color:#1a1205;border-color:var(--acc)}
@@ -106,6 +108,12 @@ select{flex:1;background:#26222b;color:var(--text);border:1px solid var(--line);
     <p class="where" id="gmWhere"></p>
     <div class="chips" id="gmCats"></div>
     <div class="grid two" id="gmGrid"></div>
+    <div class="toggle" style="margin-top:16px">
+      <div>Layer 2<small id="l2name">Off. Play two sounds at once</small></div>
+      <button class="btn ghost sm" id="l2pick">Add layer</button>
+    </div>
+    <div class="ctl hide" id="balRow"><span>Balance</span><input type="range" id="bal" min="0" max="100" value="50"><span class="val" id="balV">50 / 50</span></div>
+    <div class="row"><button class="btn ghost sm hide" id="l2off">Remove layer 2</button></div>
   </div>
 
   <!-- PHONE -->
@@ -161,7 +169,7 @@ select{flex:1;background:#26222b;color:var(--text);border:1px solid var(--line);
     • Don't pair the piano in Android's Bluetooth settings. Connect from this page instead.<br>
     • Close the Roland Piano App first. Only one app can be connected to the piano at a time.<br>
     • "All sounds" plays from the phone, so plug in a speaker for big sound. Wired has less delay than Bluetooth.<br>
-    • Real samples: FluidR3 GM by Frank Wen, CC BY 3.0, via midi-js-soundfonts.
+    • Samples: MusyngKite soundfont (CC BY-SA 3.0) via midi-js-soundfonts; Pro instruments from tonejs-instruments by Nicholaus Brosowsky (CC BY 3.0).
   </div>
 </div>
 
@@ -453,75 +461,196 @@ function rolandDT1(addr, data) {
 let remoteOn = false;
 function ensureRemote() { if (!remoteOn) { rolandDT1([1, 0, 3, 6], [1]); remoteOn = true; } }
 
-/* ---------- real samples ---------- */
+/* ---------- sounds: sample packs, synths, layers ---------- */
 let gmSource = store.get('gmsrc', 'samples');
-const sampleCache = new Map();
-let sampleSet = null, loadTok = 0;
-function b64ToAb(b) { const bin = atob(b), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
-async function loadProgram(p) {
-  if (sampleCache.has(p)) return sampleCache.get(p);
+const PRO = [['piano', 'Grand Piano'], ['guitar-acoustic', 'Acoustic Guitar'], ['guitar-nylon', 'Nylon Guitar'], ['guitar-electric', 'Electric Guitar'],
+  ['bass-electric', 'Electric Bass'], ['harp', 'Harp'], ['violin', 'Violin'], ['cello', 'Cello'], ['contrabass', 'Double Bass'], ['flute', 'Flute'],
+  ['clarinet', 'Clarinet'], ['saxophone', 'Saxophone'], ['bassoon', 'Bassoon'], ['trumpet', 'Trumpet'], ['french-horn', 'French Horn'],
+  ['trombone', 'Trombone'], ['tuba', 'Tuba'], ['organ', 'Pipe Organ'], ['harmonium', 'Harmonium'], ['xylophone', 'Xylophone']];
+const SYNTHS = ['theremin', 'supersaw', 'bass808', 'lead', 'pad', 'ep', 'bells', 'organ', 'strings', 'guitar'];
+const phoneCat = c => c === 'Pro' || c === 'Cool Synths';
+function catList() { return ['Pro', 'Cool Synths', ...Object.keys(GM_CATS), 'Drums']; }
+function catItems(cat) {
+  if (cat === 'Pro') return PRO.map(p => p[1]);
+  if (cat === 'Cool Synths') return SYNTHS.map(k => INST[k].ic + ' ' + INST[k].name);
+  if (cat === 'Drums') return gmSource === 'piano' ? DRUM_KITS.map(k => k[0]) : ['Drum Kit'];
+  return GM_CATS[cat];
+}
+function soundOf(sel) {
+  if (!sel) return null;
+  const c = sel.cat;
+  if (c === 'Pro') return { kind: 'pack', url: 'pro/' + PRO[sel.idx][0] + '.bin', name: PRO[sel.idx][1] + ' (Pro)' };
+  if (c === 'Cool Synths') return { kind: 'synth', inst: INST[SYNTHS[sel.idx]], name: INST[SYNTHS[sel.idx]].name };
+  if (c === 'Drums') return gmSource === 'piano' ? { kind: 'gm', name: (DRUM_KITS[sel.idx] || DRUM_KITS[0])[0] } : { kind: 'synth', inst: INST.drums, name: 'Drum Kit' };
+  const p = Object.keys(GM_CATS).indexOf(c) * 8 + sel.idx;
+  if (gmSource === 'piano') return { kind: 'gm', name: GM_CATS[c][sel.idx] };
+  return { kind: 'pack', url: 'sf2/' + p + '.bin', name: GM_CATS[c][sel.idx] };
+}
+
+/* extra synths */
+let thr = null;
+INST.theremin = { name: 'Theremin', ic: '👽', play(n, v, t) {
+  const f = mtof(n);
+  if (!thr) {
+    const out = gain(0); out.connect(bus);
+    const o = osc('sine', f, t), o2 = osc('triangle', f, t), g2 = gain(0.08);
+    o.connect(out); o2.connect(g2); g2.connect(out);
+    const lfo = osc('sine', 5.6, t), lg = gain(0); lfo.connect(lg); lg.connect(o.detune); lg.connect(o2.detune);
+    lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(14 + v * 16, t + 0.5);
+    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(0.22, t + 0.12);
+    thr = { o, o2, out, lfo, stack: [] };
+  } else {
+    [thr.o, thr.o2].forEach(x => { x.frequency.cancelScheduledValues(t); x.frequency.setTargetAtTime(f, t, 0.07); });
+    hold(thr.out.gain, t); thr.out.gain.setTargetAtTime(0.22, t, 0.04);
+  }
+  const me = thr, id = {}; me.stack.push([id, f]);
+  let done = false;
+  const release = rt => {
+    if (done) return; done = true;
+    me.stack = me.stack.filter(e => e[0] !== id);
+    if (me.stack.length) {
+      const nf = me.stack[me.stack.length - 1][1];
+      [me.o, me.o2].forEach(x => x.frequency.setTargetAtTime(nf, rt, 0.07));
+    } else {
+      hold(me.out.gain, rt); me.out.gain.setTargetAtTime(0, rt, 0.15);
+      [me.o, me.o2, me.lfo].forEach(x => { try { x.stop(rt + 1); } catch (e) {} });
+      if (thr === me) thr = null;
+    }
+  };
+  return { release, kill() { release(ctx.currentTime); } };
+}};
+INST.supersaw = { name: 'Supersaw', ic: '⚡', play(n, v, t) {
+  const f = mtof(n), out = gain(0); out.connect(bus);
+  const lp = bq('lowpass', Math.min(16000, 3000 + v * 9000), 0.8); lp.connect(out);
+  const nodes = [-28, -17, -8, 0, 8, 17, 28].map(d => { const o = osc('sawtooth', f, t); o.detune.value = d + (Math.random() - 0.5) * 3; o.connect(lp); return o; });
+  const sub = osc('sine', f / 2, t), sg = gain(0.4); sub.connect(sg); sg.connect(out); nodes.push(sub);
+  const pk = 0.05 * (0.5 + v * 0.5);
+  env(out, t, pk, 0.01); out.gain.setTargetAtTime(pk * 0.8, t + 0.01, 0.3);
+  return voice(out, nodes, 0.35);
+}};
+const shaper = (() => { let c = null; return () => { if (c) return c; c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; c[i] = Math.tanh(x * 2.5); } return c; }; })();
+INST.bass808 = { name: '808 Bass', ic: '🔊', play(n, v, t) {
+  const f = mtof(n), out = gain(0); out.connect(bus);
+  const ws = ctx.createWaveShaper(); ws.curve = shaper(); ws.connect(out);
+  const o = osc('sine', f * 2.5, t); o.frequency.setValueAtTime(f * 2.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.06);
+  const pre = gain(0.9); o.connect(pre); pre.connect(ws);
+  const pk = 0.45 * (0.4 + v * 0.6);
+  env(out, t, pk, 0.003); out.gain.setTargetAtTime(0, t + 0.003, 0.9);
+  return voice(out, [o], 0.12);
+}};
+
+const packCache = new Map();
+async function loadPack(url) {
+  if (packCache.has(url)) return packCache.get(url);
   initAudio();
-  const r = await fetch('sf/' + p + '.json');
+  const r = await fetch(url);
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  const j = await r.json();
-  const res = await Promise.allSettled(j.d.map(x => ctx.decodeAudioData(b64ToAb(x))));
-  const n = [], b = [];
-  res.forEach((r, i) => { if (r.status === 'fulfilled' && r.value.duration > 0.05) { n.push(j.n[i]); b.push(r.value); } });
+  const ab = await r.arrayBuffer(), dv = new DataView(ab);
+  if (String.fromCharCode(...new Uint8Array(ab, 0, 4)) !== 'FPS1') throw new Error('bad file');
+  const cnt = dv.getUint16(4, true), jobs = [];
+  for (let i = 0; i < cnt; i++) {
+    const o = 6 + i * 9, m = dv.getUint8(o), off = dv.getUint32(o + 1, true), len = dv.getUint32(o + 5, true);
+    jobs.push(ctx.decodeAudioData(ab.slice(off, off + len)).then(b => [m, b]));
+  }
+  const res = await Promise.allSettled(jobs), n = [], b = [];
+  res.forEach(x => { if (x.status === 'fulfilled' && x.value[1].duration > 0.05) { n.push(x.value[0]); b.push(x.value[1]); } });
   if (!b.length) throw new Error('no playable samples');
   const set = { n, b };
-  sampleCache.set(p, set);
-  if (sampleCache.size > 6) sampleCache.delete(sampleCache.keys().next().value);
+  packCache.set(url, set);
+  if (packCache.size > 8) packCache.delete(packCache.keys().next().value);
   return set;
 }
-function gmProgram() { return Object.keys(GM_CATS).indexOf(gmSel.cat) * 8 + gmSel.idx; }
-function gmName() { return gmSel.cat === 'Drums' ? DRUM_KITS[gmSel.idx][0] : GM_CATS[gmSel.cat][gmSel.idx]; }
-function updateWhere(extra) {
+
+let gmSel = store.get('gm', { cat: 'Pro', idx: 0 });
+if (!catList().includes(gmSel.cat) || gmSel.idx >= catItems(gmSel.cat).length) gmSel = { cat: 'Pro', idx: 0 };
+let layer2 = store.get('l2', null);
+if (layer2 && (!catList().includes(layer2.cat) || layer2.idx >= catItems(layer2.cat).length)) layer2 = null;
+let balance = store.get('bal', 50), pickL2 = false;
+const layerSets = [null, null], loadTok = [0, 0], layerState = ['', ''];
+let layerBus = null;
+function ensureLayerBus() {
+  if (layerBus || !ctx) return;
+  layerBus = [gain(1), gain(1)]; layerBus.forEach(g => g.connect(bus)); applyBalance();
+}
+function applyBalance() {
+  if (!layerBus) return;
+  const g1 = balance <= 50 ? 1 : (100 - balance) / 50, g2 = balance >= 50 ? 1 : balance / 50;
+  layerBus[0].gain.setTargetAtTime(layer2 ? g1 : 1, ctx.currentTime, 0.02);
+  layerBus[1].gain.setTargetAtTime(g2, ctx.currentTime, 0.02);
+}
+function withBus(b, fn) { const old = bus; bus = b; try { return fn(); } finally { bus = old; } }
+
+function updateWhere() {
   const w = $('gmWhere');
-  if (gmSource === 'piano') w.innerHTML = 'Sound comes from the <b>piano speakers</b>, using the FP-10\'s built-in GM2 sounds. Some of them may sound alike.';
-  else w.innerHTML = 'Sound comes from the <b>phone</b>, using real recorded instruments. ' + (extra || '');
+  const s1 = soundOf(gmSel), s2 = soundOf(layer2);
+  const label = (s, i) => s ? s.name + (layerState[i] ? ' <i>(' + layerState[i] + ')</i>' : '') : '';
+  let src = gmSource === 'piano' && s1.kind === 'gm'
+    ? 'Layer 1 plays from the <b>piano speakers</b> (FP-10 GM2 sounds). '
+    : 'Sound comes from the <b>phone</b>. ';
+  w.innerHTML = src + 'Now: <b>' + label(s1, 0) + '</b>' + (s2 ? ' + <b style="color:var(--acc2)">' + label(s2, 1) + '</b>' : '');
+  $('l2name').innerHTML = pickL2 ? '<b style="color:var(--acc2)">Tap a sound above to add it…</b>' : (s2 ? s2.name : 'Off. Play two sounds at once');
+  $('l2pick').textContent = pickL2 ? 'Cancel' : (layer2 ? 'Change' : 'Add layer');
+  $('l2off').classList.toggle('hide', !layer2);
+  $('balRow').classList.toggle('hide', !layer2);
 }
-async function loadSamples() {
-  if (gmSource !== 'samples' || gmSel.cat === 'Drums') { updateWhere(gmSel.cat === 'Drums' ? 'Drums use the built-in phone drum kit.' : ''); return; }
-  const tok = ++loadTok, p = gmProgram();
-  if (!sampleCache.has(p)) updateWhere('<b>Loading ' + gmName() + '…</b>');
+async function loadLayer(i) {
+  const s = soundOf(i === 0 ? gmSel : layer2);
+  const tok = ++loadTok[i];
+  layerSets[i] = null;
+  if (!s || s.kind !== 'pack') { layerState[i] = ''; updateWhere(); return; }
+  if (!packCache.has(s.url)) { layerState[i] = 'loading…'; updateWhere(); }
   try {
-    const set = await loadProgram(p);
-    if (tok !== loadTok) return;
-    sampleSet = set; updateWhere('Now: ' + gmName() + '.');
+    const set = await loadPack(s.url);
+    if (tok !== loadTok[i]) return;
+    layerSets[i] = set; layerState[i] = '';
   } catch (e) {
-    if (tok === loadTok) updateWhere('<span style="color:#ff9a8f">Couldn\'t load ' + gmName() + ' (' + e.message + ').</span>');
+    if (tok === loadTok[i]) layerState[i] = 'couldn\'t load: ' + e.message;
   }
+  updateWhere();
 }
-const SAMPLER = { play(n, v, t) {
+function loadSamples() { initAudio(); loadLayer(0); loadLayer(1); }
+
+function makeSampler(set) { return { play(n, v, t) {
   const out = gain(0); out.connect(bus);
-  if (!sampleSet) return voice(out, [], 0.05);
+  if (!set) return voice(out, [], 0.05);
   let best = 0;
-  for (let i = 1; i < sampleSet.n.length; i++) if (Math.abs(sampleSet.n[i] - n) < Math.abs(sampleSet.n[best] - n)) best = i;
-  const s = ctx.createBufferSource(); s.buffer = sampleSet.b[best];
-  s.playbackRate.value = Math.pow(2, (n - sampleSet.n[best]) / 12) * (tuneHz / 440);
+  for (let i = 1; i < set.n.length; i++) if (Math.abs(set.n[i] - n) < Math.abs(set.n[best] - n)) best = i;
+  const s = ctx.createBufferSource(); s.buffer = set.b[best];
+  s.playbackRate.value = Math.pow(2, (n - set.n[best]) / 12) * (tuneHz / 440);
   const lp = bq('lowpass', 1500 + v * 14000);
   s.connect(lp); lp.connect(out); s.start(t);
   const pk = 0.9 * Math.pow(v, 1.3) + 0.05;
   out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(pk, t + 0.003);
   return voice(out, [s], 0.3);
-}};
+}}; }
+// what plays layer i: an instrument object for the phone, 'piano' for the FP-10, or null
+function instFor(i) {
+  const s = soundOf(i === 0 ? gmSel : layer2);
+  if (!s) return null;
+  if (s.kind === 'gm') return i === 0 ? 'piano' : null;
+  if (s.kind === 'synth') return s.inst;
+  if (!layerSets[i] && !layerState[i]) loadLayer(i);
+  return makeSampler(layerSets[i]);
+}
 function setSource(src, user) {
   gmSource = src; store.set('gmsrc', src);
   document.querySelectorAll('#srcTabs button').forEach(b => b.classList.toggle('sel', b.dataset.s === src));
-  allOff(); if (user && src === 'samples') initAudio();
-  applyMode(); updateWhere(); if (src === 'samples' && user) loadSamples();
+  if (gmSel.idx >= catItems(gmSel.cat).length) gmSel.idx = 0;
+  if (layer2 && layer2.idx >= catItems(layer2.cat).length) layer2.idx = 0;
+  allOff(); if (user) initAudio();
+  applyMode(); if (window.renderGm) renderGm(); updateWhere(); if (user) loadSamples();
 }
 
 /* ---------- modes ---------- */
 let mode = store.get('mode', 'piano');
 let pianoTone = store.get('ptone', 0);
-let gmSel = store.get('gm', { cat: 'Piano', idx: 0 });
 
 function applyPianoTone() {
   const t = FP10_TONES[pianoTone];
   bank(PANEL_CH, t[1], t[2], t[3] - 1);
 }
 function applyGm() {
+  if (gmSource !== 'piano' || phoneCat(gmSel.cat)) return;
   if (gmSel.cat === 'Drums') bank(GM_CH, 120, 0, DRUM_KITS[gmSel.idx][1]);
   else {
     const cats = Object.keys(GM_CATS);
@@ -533,7 +662,7 @@ function applyMode() {
   if (!isConnected()) return;
   cc(GM_CH, 123, 0); cc(GM_CH, 64, 0);
   if (mode === 'piano') { cc(PANEL_CH, 7, 100); applyPianoTone(); }
-  else if (mode === 'gm2') { cc(PANEL_CH, 7, 0); if (gmSource === 'piano') applyGm(); }
+  else if (mode === 'gm2') { cc(PANEL_CH, 7, 0); applyGm(); }
   else { cc(PANEL_CH, 7, 0); }
 }
 function setMode(m, userAct) {
@@ -541,7 +670,7 @@ function setMode(m, userAct) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('sel', b.dataset.m === m));
   ['piano', 'gm2', 'phone'].forEach(x => $('pane-' + x).classList.toggle('hide', x !== m));
   allOff();
-  if ((m === 'phone' || (m === 'gm2' && gmSource === 'samples')) && userAct) initAudio();
+  if ((m === 'phone' || m === 'gm2') && userAct) initAudio();
   if (m === 'gm2' && userAct) loadSamples();
   applyMode();
 }
@@ -574,16 +703,16 @@ const active = new Map(), sustained = new Set(), all = [], keyEls = {}, touched 
 function forget(v) { const i = all.indexOf(v); if (i >= 0) all.splice(i, 1); }
 function rel(v) { v.release(ctx.currentTime); setTimeout(() => forget(v), 2500); }
 
-function synthOn(n, vel, instOverride) {
+function synthOn(n, vel, instOverride, slot = 0) {
   initAudio();
   const inst = instOverride || INST[(split && n < 60) ? 'bass' : current];
-  const t = ctx.currentTime;
-  const old = active.get(n); if (old) { rel(old); active.delete(n); }
-  sustained.forEach(sv => { if (sv.key === n) { rel(sv); sustained.delete(sv); } });
+  const t = ctx.currentTime, key = n + slot * 1000;
+  const old = active.get(key); if (old) { rel(old); active.delete(key); }
+  sustained.forEach(sv => { if (sv.key === key) { rel(sv); sustained.delete(sv); } });
   let pn = inst.drum ? n : n + (instOverride ? 0 : octave * 12) + transpose;
   pn = Math.max(12, Math.min(120, pn));
-  const v = inst.play(pn, vel, t); v.key = n;
-  if (v.oneShot) setTimeout(() => forget(v), 2500); else active.set(n, v);
+  const v = inst.play(pn, vel, t); v.key = key;
+  if (v.oneShot) setTimeout(() => forget(v), 2500); else active.set(key, v);
   all.push(v);
   while (all.length > 48) {
     const o = all.shift(); o.kill(); sustained.delete(o);
@@ -591,28 +720,35 @@ function synthOn(n, vel, instOverride) {
   }
 }
 function synthOff(n) {
-  const v = active.get(n);
-  if (v) { active.delete(n); if (pedal) sustained.add(v); else rel(v); }
+  [n, n + 1000].forEach(key => {
+    const v = active.get(key);
+    if (v) { active.delete(key); if (pedal) sustained.add(v); else rel(v); }
+  });
 }
 
 // fromPiano: the note came from the piano's own keys (the piano already sounds it in Piano-tone mode)
 function noteOn(n, vel, fromPiano) {
   held.add(n); setKey(n, true); updateNotes();
-  const useSamples = mode === 'gm2' && gmSource === 'samples';
   if (mode === 'phone') synthOn(n, vel);
-  else if (useSamples) { if (!sampleSet && gmSel.cat !== 'Drums') loadSamples(); synthOn(n, vel, gmSel.cat === 'Drums' ? INST.drums : SAMPLER); }
-  else if (mode === 'gm2') send([0x90 | GM_CH, n, Math.max(1, Math.round(vel * 127))]);
+  else if (mode === 'gm2') {
+    initAudio(); ensureLayerBus();
+    [0, 1].forEach(i => {
+      const inst = instFor(i);
+      if (inst === 'piano') send([0x90 | GM_CH, n, Math.max(1, Math.round(vel * 127))]);
+      else if (inst) withBus(layerBus[i], () => synthOn(n, vel, inst, i));
+    });
+  }
   else if (!fromPiano) send([0x90 | PANEL_CH, n, Math.max(1, Math.round(vel * 127))]);
 }
 function noteOff(n, fromPiano) {
   held.delete(n); setKey(n, false); updateNotes();
-  if (mode === 'phone' || (mode === 'gm2' && gmSource === 'samples')) synthOff(n);
-  else if (mode === 'gm2') send([0x80 | GM_CH, n, 0]);
+  if (mode === 'phone') synthOff(n);
+  else if (mode === 'gm2') { synthOff(n); if (soundOf(gmSel).kind === 'gm') send([0x80 | GM_CH, n, 0]); }
   else if (!fromPiano) send([0x80 | PANEL_CH, n, 0]);
 }
 function setPedal(on, fromPiano) {
   pedal = on; $('pedal').textContent = on ? 'down' : 'up';
-  if (mode === 'gm2' && gmSource === 'piano' && fromPiano) cc(GM_CH, 64, on ? 127 : 0);
+  if (mode === 'gm2' && soundOf(gmSel).kind === 'gm' && fromPiano) cc(GM_CH, 64, on ? 127 : 0);
   if (!on && ctx) { sustained.forEach(rel); sustained.clear(); }
 }
 function allOff() {
@@ -764,28 +900,39 @@ function buildPianoGrid() {
 }
 
 function buildGm() {
-  const cats = [...Object.keys(GM_CATS), 'Drums'];
   const chips = $('gmCats');
   let viewCat = gmSel.cat;
-  const renderList = () => {
-    chips.querySelectorAll('button').forEach(c => c.classList.toggle('sel', c.dataset.c === viewCat));
+  window.renderGm = () => {
+    chips.innerHTML = '';
+    catList().forEach(c => {
+      const b = document.createElement('button'); b.textContent = c; b.dataset.c = c;
+      b.classList.toggle('sel', c === viewCat);
+      b.onclick = () => { viewCat = c; renderGm(); };
+      chips.appendChild(b);
+    });
     const g = $('gmGrid'); g.innerHTML = '';
-    const items = viewCat === 'Drums' ? DRUM_KITS.map(k => k[0]) : GM_CATS[viewCat];
-    items.forEach((name, i) => {
+    catItems(viewCat).forEach((name, i) => {
       const b = document.createElement('button');
-      const num = viewCat === 'Drums' ? 'Kit' : '#' + (Object.keys(GM_CATS).indexOf(viewCat) * 8 + i + 1);
-      b.className = 'inst' + (gmSel.cat === viewCat && gmSel.idx === i ? ' sel' : '');
+      const num = viewCat === 'Pro' ? '★ Pro' : viewCat === 'Cool Synths' ? 'Synth' : viewCat === 'Drums' ? 'Kit' : '#' + (Object.keys(GM_CATS).indexOf(viewCat) * 8 + i + 1);
+      const is1 = gmSel.cat === viewCat && gmSel.idx === i, is2 = layer2 && layer2.cat === viewCat && layer2.idx === i;
+      b.className = 'inst' + (is1 ? ' sel' : '') + (is2 ? ' sel2' : '');
       b.innerHTML = '<span class="num">' + num + '</span>' + name;
-      b.onclick = () => { gmSel = { cat: viewCat, idx: i }; store.set('gm', gmSel); selIn(g, i); if (mode === 'gm2') { if (gmSource === 'piano') applyGm(); else { initAudio(); loadSamples(); } } };
+      b.onclick = () => {
+        initAudio(); allOff();
+        if (pickL2) { layer2 = { cat: viewCat, idx: i }; store.set('l2', layer2); pickL2 = false; ensureLayerBus(); applyBalance(); loadLayer(1); }
+        else { gmSel = { cat: viewCat, idx: i }; store.set('gm', gmSel); applyGm(); loadLayer(0); }
+        renderGm(); updateWhere();
+      };
       g.appendChild(b);
     });
   };
-  cats.forEach(c => {
-    const b = document.createElement('button'); b.textContent = c; b.dataset.c = c;
-    b.onclick = () => { viewCat = c; renderList(); };
-    chips.appendChild(b);
-  });
-  renderList();
+  renderGm();
+  $('l2pick').onclick = () => { pickL2 = !pickL2; updateWhere(); };
+  $('l2off').onclick = () => { allOff(); layer2 = null; store.set('l2', null); pickL2 = false; layerSets[1] = null; applyBalance(); renderGm(); updateWhere(); };
+  $('bal').value = balance;
+  const showBal = () => { $('balV').textContent = (100 - balance) + ' / ' + balance; };
+  showBal();
+  $('bal').oninput = e => { balance = +e.target.value; store.set('bal', balance); showBal(); applyBalance(); };
 }
 
 function buildGrid() {
@@ -867,7 +1014,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 transpose = store.get('tr', 0); tuneHz = store.get('tune', 440);
-buildPianoGrid(); buildGm(); buildGrid(); buildKb(); showSettings(); setSource(gmSource, false); setMode(mode);
+buildPianoGrid(); buildGm(); buildGrid(); buildKb(); showSettings(); setSource(gmSource, false); setMode(mode); updateWhere();
 </script>
 </body>
 </html>
