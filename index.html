@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FP-10 Instrument Box</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#121014;--panel:#1d1a21;--line:#2e2934;--text:#f3eef7;--mute:#a59fae;--acc:#ffb347;--acc2:#ff6f61;--ok:#5fd38d}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:720px;margin:0 auto;padding:16px 14px 28px}
+h1{font-size:22px;margin:4px 0 2px;letter-spacing:-.01em}
+.sub{color:var(--mute);font-size:13px;margin:0 0 14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.conn{display:flex;align-items:center;gap:12px}
+.dot{width:12px;height:12px;border-radius:50%;background:#555;flex:none;transition:background .1s,box-shadow .1s}
+.dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.dot.flash{background:var(--acc);box-shadow:0 0 14px var(--acc)}
+.status{flex:1;font-size:15px;line-height:1.3;font-weight:600}
+.status small{display:block;color:var(--mute);font-size:12px;font-weight:400;margin-top:2px}
+.status.err small{color:#ff9a8f}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+.btn{background:var(--acc);color:#1a1205;font-weight:700;padding:11px 16px;border-radius:12px;font-size:15px}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tabs{display:flex;gap:6px;background:#17141b;border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px 4px;border-radius:10px;font-size:13px;font-weight:700;color:var(--mute)}
+.tabs button.sel{background:var(--acc);color:#1a1205}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid.two{grid-template-columns:repeat(2,1fr)}
+.inst{background:#26222b;border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center;font-size:13px;font-weight:600;transition:.12s;line-height:1.25}
+.inst .ic{font-size:24px;display:block;margin-bottom:4px}
+.inst .num{display:block;font-size:11px;color:var(--mute);font-weight:400;margin-bottom:2px}
+.inst.sel{border-color:var(--acc);background:#3a2b1a;box-shadow:inset 0 0 0 1px var(--acc)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px;-webkit-overflow-scrolling:touch}
+.chips button{flex:none;background:#26222b;border:1px solid var(--line);border-radius:20px;padding:7px 12px;font-size:13px;font-weight:600}
+.chips button.sel{background:var(--acc);color:#1a1205;border-color:var(--acc)}
+.label{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px}
+.ctl{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:14px}
+.ctl>span:first-child{width:84px;color:var(--mute);flex:none}
+.ctl .val{min-width:62px;text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{flex:1;accent-color:var(--acc);min-width:0}
+select{flex:1;background:#26222b;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit}
+.seg{display:flex;align-items:center;gap:6px}
+.seg button{background:#26222b;border:1px solid var(--line);border-radius:10px;width:40px;height:34px;font-size:18px}
+.seg b{min-width:40px;text-align:center}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;margin:14px 0 2px}
+.toggle small{display:block;color:var(--mute);font-size:12px}
+.sw{width:48px;height:28px;border-radius:14px;background:#3a3540;position:relative;flex:none;transition:.15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.15s}
+.sw.on{background:var(--acc)}.sw.on::after{left:23px}
+.now{font-size:13px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
+.now b{color:var(--text)}
+.kbwrap{overflow-x:auto;overflow-y:hidden;border-radius:10px;background:#000;-webkit-overflow-scrolling:touch}
+.kb{position:relative;height:150px}
+.w,.k{position:absolute;top:0;touch-action:pan-x;user-select:none;-webkit-user-select:none}
+.w{width:30px;height:150px;background:linear-gradient(#f4f1ea,#ddd8cc);border:1px solid #222;border-radius:0 0 6px 6px}
+.k{width:20px;height:92px;background:linear-gradient(#2c2c2c,#0a0a0a);border-radius:0 0 4px 4px;z-index:2;border:1px solid #000}
+.w.down{background:linear-gradient(#ffd38a,var(--acc))}
+.k.down{background:linear-gradient(var(--acc2),#a8352b)}
+.w .nm{position:absolute;bottom:6px;width:100%;text-align:center;font-size:10px;color:#777;pointer-events:none}
+.tip{font-size:13px;color:var(--mute);line-height:1.5}
+.tip b{color:var(--text)}
+.hide{display:none}
+.where{font-size:12px;color:var(--mute);margin:-4px 0 10px}
+.where b{color:var(--acc)}
+.exp{border-style:dashed}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FP-10 Instrument Box</h1>
+  <p class="sub">Switch your FP-10's sounds and settings from your phone.</p>
+
+  <div class="card">
+    <div class="conn">
+      <div class="dot" id="dot"></div>
+      <div class="status" id="status">Not connected<small>Make sure the FP-10's Bluetooth is on, then tap Connect.</small></div>
+    </div>
+    <div class="row">
+      <button class="btn" id="btConnect">Connect Bluetooth</button>
+      <button class="btn ghost" id="usbConnect">USB cable</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button data-m="piano">Piano tones</button>
+    <button data-m="gm2">All sounds</button>
+    <button data-m="phone">Phone synth</button>
+  </div>
+
+  <!-- PIANO TONES -->
+  <div class="card" id="pane-piano">
+    <p class="where">Sound comes from the <b>piano speakers</b>. These are the FP-10's 15 built-in tones.</p>
+    <div class="grid" id="pianoGrid"></div>
+  </div>
+
+  <!-- GM2 -->
+  <div class="card hide" id="pane-gm2">
+    <div class="tabs" id="srcTabs" style="margin-bottom:10px">
+      <button data-s="samples">Real samples (phone)</button>
+      <button data-s="piano">Piano's GM2</button>
+    </div>
+    <p class="where" id="gmWhere"></p>
+    <div class="chips" id="gmCats"></div>
+    <div class="grid two" id="gmGrid"></div>
+  </div>
+
+  <!-- PHONE -->
+  <div class="card hide" id="pane-phone">
+    <p class="where">Sound comes from the <b>phone</b>. The piano's own sound is muted while you're here.</p>
+    <div class="grid" id="grid"></div>
+    <div class="toggle">
+      <div>Split keyboard<small>Bass on the keys left of middle C</small></div>
+      <div class="sw" id="split" role="switch" aria-checked="false"></div>
+    </div>
+    <div class="ctl"><span>Phone vol</span><input type="range" id="vol" min="0" max="100" value="80"></div>
+    <div class="ctl"><span>Reverb</span><input type="range" id="rev" min="0" max="100" value="25"></div>
+    <div class="ctl"><span>Octave</span><div class="seg"><button id="octDn">−</button><b id="oct">0</b><button id="octUp">+</button></div></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card">
+    <p class="label">Piano settings</p>
+    <div class="ctl"><span>Volume</span><input type="range" id="pvol" min="0" max="127" value="100"><span class="val" id="pvolV">100</span></div>
+    <div class="ctl"><span>Transpose</span><div class="seg"><button id="trDn">−</button><b id="tr">0</b><button id="trUp">+</button></div><span class="val" id="trKey">C</span></div>
+    <div class="ctl"><span>Tuning</span><input type="range" id="tune" min="4153" max="4662" value="4400"><span class="val" id="tuneV">440.0 Hz</span></div>
+    <div class="ctl"><span>Reverb</span>
+      <select id="revType">
+        <option value="0">Small room</option><option value="1">Medium room</option><option value="2">Large room</option>
+        <option value="3">Medium hall</option><option value="4" selected>Large hall</option><option value="8">Plate</option>
+      </select>
+    </div>
+    <div class="row"><button class="btn ghost sm" id="resetSet">Reset settings</button></div>
+  </div>
+
+  <!-- EXPERIMENTAL -->
+  <div class="card exp">
+    <p class="label">Experimental</p>
+    <p class="tip" style="margin:0 0 6px">These use commands that people decoded from the Roland Piano App on the FP-30. They may or may not work on the FP-10.</p>
+    <div class="ctl"><span>Key touch</span>
+      <select id="touch"><option value="0">Fixed</option><option value="1">Super light</option><option value="2">Light</option><option value="3" selected>Medium</option><option value="4">Heavy</option><option value="5">Super heavy</option></select>
+    </div>
+    <div class="ctl"><span>Brilliance</span>
+      <select id="brill"><option value="-1">Mellow</option><option value="0" selected>Normal</option><option value="1">Bright</option></select>
+    </div>
+    <div class="ctl"><span>Metronome</span><input type="range" id="bpm" min="20" max="250" value="100"><span class="val" id="bpmV">100 bpm</span></div>
+    <div class="row"><button class="btn ghost sm" id="metro">Metronome on/off</button></div>
+  </div>
+
+  <div class="card">
+    <div class="now"><span>Playing: <b id="notes">—</b></span><span>Pedal: <b id="pedal">up</b></span></div>
+    <div class="kbwrap" id="kbwrap"><div class="kb" id="kb"></div></div>
+    <p class="tip" style="margin:8px 0 0">Tap these keys to try sounds. In the piano tabs they play through the piano.</p>
+  </div>
+
+  <div class="card tip">
+    <b>Tips</b><br>
+    • Don't pair the piano in Android's Bluetooth settings. Connect from this page instead.<br>
+    • Close the Roland Piano App first. Only one app can be connected to the piano at a time.<br>
+    • "All sounds" plays from the phone, so plug in a speaker for big sound. Wired has less delay than Bluetooth.<br>
+    • Real samples: FluidR3 GM by Frank Wen, CC BY 3.0, via midi-js-soundfonts.
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NAMES = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+const noteName = n => NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+let tuneHz = 440, transpose = 0;
+const mtof = n => tuneHz * Math.pow(2, (n - 69) / 12);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('fp10-' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('fp10-' + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+/* ---------- audio engine ---------- */
+let ctx, bus, master, revGain, noiseBuf;
+const ksCache = new Map();
+
+function makeImpulse(sec) {
+  const sr = ctx.sampleRate, len = Math.floor(sr * sec), b = ctx.createBuffer(2, len, sr);
+  for (let c = 0; c < 2; c++) {
+    const d = b.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  }
+  return b;
+}
+
+function initAudio() {
+  if (ctx) { if (ctx.state !== 'running') ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  master = ctx.createGain(); master.gain.value = $('vol').value / 100;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
+  master.connect(comp); comp.connect(ctx.destination);
+  const conv = ctx.createConvolver(); conv.buffer = makeImpulse(2.4);
+  revGain = ctx.createGain(); revGain.gain.value = $('rev').value / 100 * 0.6;
+  revGain.connect(conv); conv.connect(master);
+  bus = ctx.createGain(); bus.connect(master); bus.connect(revGain);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+}
+
+function osc(type, f, t) { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.start(t); return o; }
+function gain(v) { const g = ctx.createGain(); g.gain.value = v; return g; }
+function bq(type, f, q = 0.7) { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; }
+function hold(p, t) {
+  if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t);
+  else { const v = p.value; p.cancelScheduledValues(t); p.setValueAtTime(v, t); }
+}
+function voice(out, nodes, relTime) {
+  return {
+    out,
+    release(t) {
+      hold(out.gain, t); out.gain.setTargetAtTime(0, t, relTime / 4);
+      const end = t + relTime + 0.05;
+      nodes.forEach(n => { try { n.stop(end); } catch (e) {} });
+      setTimeout(() => { try { out.disconnect(); } catch (e) {} }, (end - ctx.currentTime) * 1000 + 300);
+    },
+    kill() {
+      const t = ctx.currentTime; hold(out.gain, t); out.gain.setTargetAtTime(0, t, 0.01);
+      nodes.forEach(n => { try { n.stop(t + 0.06); } catch (e) {} });
+      setTimeout(() => { try { out.disconnect(); } catch (e) {} }, 300);
+    }
+  };
+}
+function env(out, t, pk, attack) { out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(pk, t + attack); }
+
+/* Karplus-Strong plucked string, rendered once per note and cached */
+function ks(n) {
+  if (ksCache.has(n)) return ksCache.get(n);
+  const sr = ctx.sampleRate, f = mtof(n);
+  const N = Math.max(2, Math.floor(sr / f - 0.5));
+  const actual = sr / (N + 0.5);
+  const len = Math.floor(sr * 3.5);
+  const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  const ring = new Float32Array(N);
+  let prev = 0, mean = 0;
+  for (let i = 0; i < N; i++) { prev = prev * 0.45 + (Math.random() * 2 - 1) * 0.55; ring[i] = prev; mean += prev; }
+  mean /= N; for (let i = 0; i < N; i++) ring[i] -= mean;
+  const rho = Math.pow(0.001, 1 / (actual * 3.2));
+  let idx = 0;
+  for (let i = 0; i < len; i++) {
+    const nx = idx + 1 === N ? 0 : idx + 1;
+    const y = ring[idx]; d[i] = y;
+    ring[idx] = rho * 0.5 * (y + ring[nx]);
+    idx = nx;
+  }
+  const r = { buf, rate: f / actual }; ksCache.set(n, r); return r;
+}
+
+function noise(t, dur) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.start(t, Math.random()); s.stop(t + dur); return s; }
+function hat(o, t, dec, lvl = 0.45) {
+  const nz = noise(t, dec * 6 + 0.05), hp = bq('highpass', 7500), g = gain(0);
+  g.gain.setValueAtTime(lvl, t); g.gain.setTargetAtTime(0, t, dec);
+  nz.connect(hp); hp.connect(g); g.connect(o); return [nz];
+}
+function tom(o, t, f) {
+  const s = osc('sine', f, t); s.frequency.setValueAtTime(f, t); s.frequency.exponentialRampToValueAtTime(f * 0.6, t + 0.3);
+  const g = gain(0); g.gain.setValueAtTime(0.9, t); g.gain.setTargetAtTime(0, t, 0.15);
+  s.connect(g); g.connect(o); s.stop(t + 1); return [s];
+}
+const DRUM = {
+  kick(o, t) {
+    const s = osc('sine', 160, t); s.frequency.setValueAtTime(160, t); s.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+    const g = gain(0); g.gain.setValueAtTime(1.2, t); g.gain.setTargetAtTime(0, t + 0.02, 0.12);
+    s.connect(g); g.connect(o); s.stop(t + 0.7);
+    const c = noise(t, 0.02), hp = bq('highpass', 2000), cg = gain(0.3); c.connect(hp); hp.connect(cg); cg.connect(o);
+    return [s, c];
+  },
+  snare(o, t) {
+    const nz = noise(t, 0.35), hp = bq('highpass', 1200), g = gain(0);
+    g.gain.setValueAtTime(0.7, t); g.gain.setTargetAtTime(0, t, 0.06); nz.connect(hp); hp.connect(g); g.connect(o);
+    const tone = osc('triangle', 190, t); tone.frequency.setValueAtTime(190, t); tone.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    const tg = gain(0); tg.gain.setValueAtTime(0.6, t); tg.gain.setTargetAtTime(0, t, 0.04);
+    tone.connect(tg); tg.connect(o); tone.stop(t + 0.3);
+    return [nz, tone];
+  },
+  rim(o, t) {
+    const a = osc('square', 800, t), bp = bq('bandpass', 1700, 3), g = gain(0);
+    g.gain.setValueAtTime(0.5, t); g.gain.setTargetAtTime(0, t, 0.015); a.connect(bp); bp.connect(g); g.connect(o); a.stop(t + 0.15);
+    return [a];
+  },
+  clap(o, t) {
+    const nz = noise(t, 0.4), bp = bq('bandpass', 1500, 1.2), g = gain(0);
+    [0, 0.01, 0.02].forEach(d => { g.gain.setValueAtTime(0.8, t + d); g.gain.setTargetAtTime(0, t + d, 0.004); });
+    g.gain.setValueAtTime(0.6, t + 0.03); g.gain.setTargetAtTime(0, t + 0.03, 0.07);
+    nz.connect(bp); bp.connect(g); g.connect(o); return [nz];
+  },
+  hatC(o, t) { return hat(o, t, 0.025); },
+  hatP(o, t) { return hat(o, t, 0.04, 0.35); },
+  hatO(o, t) { return hat(o, t, 0.25); },
+  crash(o, t) {
+    const nz = noise(t, 2), hp = bq('highpass', 4500), g = gain(0);
+    g.gain.setValueAtTime(0.6, t); g.gain.setTargetAtTime(0, t, 0.55); nz.connect(hp); hp.connect(g); g.connect(o); return [nz];
+  },
+  tomL(o, t) { return tom(o, t, 110); },
+  tomM(o, t) { return tom(o, t, 150); },
+  tomH(o, t) { return tom(o, t, 210); }
+};
+const DRUMMAP = ['kick', 'rim', 'snare', 'clap', 'snare', 'tomL', 'hatC', 'tomM', 'hatP', 'tomH', 'hatO', 'crash'];
+
+const INST = {
+  ep: { name: 'Electric Piano', ic: '🎹', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus);
+    const c = osc('sine', f, t), m = osc('sine', f, t), mg = gain(0);
+    m.connect(mg); mg.connect(c.frequency);
+    mg.gain.setValueAtTime(f * (0.5 + v * 2.5), t); mg.gain.setTargetAtTime(f * 0.15, t, 0.4);
+    const m2 = osc('sine', f * 14, t), mg2 = gain(0); m2.connect(mg2); mg2.connect(c.frequency);
+    mg2.gain.setValueAtTime(f * v * 3, t); mg2.gain.setTargetAtTime(0, t, 0.02);
+    c.connect(out);
+    const pk = 0.32 * (0.3 + v * 0.7);
+    env(out, t, pk, 0.004); out.gain.setTargetAtTime(0, t + 0.004, 1.2 + Math.max(0, 100 - n) * 0.03);
+    return voice(out, [c, m, m2], 0.35);
+  }},
+  guitar: { name: 'Guitar', ic: '🎸', play(n, v, t) {
+    const out = gain(0.5 * (0.3 + v * 0.7)); out.connect(bus);
+    const { buf, rate } = ks(n);
+    const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
+    const lp = bq('lowpass', 1200 + v * 7000); s.connect(lp); lp.connect(out); s.start(t);
+    return voice(out, [s], 0.15);
+  }},
+  strings: { name: 'Strings', ic: '🎻', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus);
+    const lp = bq('lowpass', Math.min(f * 6 + 800, 1500 + v * 4000)); lp.connect(out);
+    const nodes = [-9, 0, 9].map(d => { const o = osc('sawtooth', f, t); o.detune.value = d; o.connect(lp); return o; });
+    const lfo = osc('sine', 5.2, t), lg = gain(0);
+    lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(7, t + 0.8);
+    lfo.connect(lg); nodes.forEach(o => lg.connect(o.detune)); nodes.push(lfo);
+    env(out, t, 0.06 * (0.4 + v * 0.6), 0.18 + (1 - v) * 0.25);
+    return voice(out, nodes, 0.7);
+  }},
+  organ: { name: 'Organ', ic: '⛪', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus); const nodes = [];
+    [[0.5, .5], [1, 1], [2, .6], [3, .35], [4, .3], [8, .15]].forEach(([r, a]) => {
+      if (f * r > 12000) return;
+      const o = osc('sine', f * r, t), g = gain(a); o.connect(g); g.connect(out); nodes.push(o);
+    });
+    const lfo = osc('sine', 6, t), lg = gain(6); lfo.connect(lg); nodes.forEach(o => lg.connect(o.detune)); nodes.push(lfo);
+    env(out, t, 0.07, 0.015);
+    return voice(out, nodes, 0.08);
+  }},
+  bells: { name: 'Bells', ic: '🔔', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus);
+    const c = osc('sine', f, t), m = osc('sine', f * 3.5, t), mg = gain(0);
+    m.connect(mg); mg.connect(c.frequency);
+    mg.gain.setValueAtTime(f * (1 + v * 3), t); mg.gain.setTargetAtTime(f * 0.2, t, 0.5);
+    c.connect(out);
+    env(out, t, 0.22 * (0.3 + v * 0.7), 0.002); out.gain.setTargetAtTime(0, t + 0.002, 1.4);
+    return voice(out, [c, m], 1.2);
+  }},
+  lead: { name: 'Synth Lead', ic: '🎛️', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus);
+    const lp = bq('lowpass', 1000, 7);
+    lp.frequency.setValueAtTime(Math.min(f * (4 + v * 10), 16000), t);
+    lp.frequency.setTargetAtTime(Math.min(f * 2.5, 12000), t, 0.12); lp.connect(out);
+    const a = osc('sawtooth', f, t), b = osc('square', f, t), bg = gain(0.5);
+    b.detune.value = 7; a.connect(lp); b.connect(bg); bg.connect(lp);
+    const pk = 0.09 * (0.5 + v * 0.5);
+    env(out, t, pk, 0.005); out.gain.setTargetAtTime(pk * 0.7, t + 0.005, 0.15);
+    return voice(out, [a, b], 0.15);
+  }},
+  pad: { name: 'Space Pad', ic: '🌌', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus);
+    const lp = bq('lowpass', 900, 2); lp.connect(out);
+    const lfo = osc('sine', 0.25, t), lg = gain(600); lfo.connect(lg); lg.connect(lp.frequency);
+    const nodes = [-14, 14].map(d => { const o = osc('sawtooth', f, t); o.detune.value = d; o.connect(lp); return o; });
+    const tr = osc('triangle', f * 2, t), tg = gain(0.4); tr.connect(tg); tg.connect(lp); nodes.push(tr, lfo);
+    env(out, t, 0.06 * (0.5 + v * 0.5), 0.7);
+    return voice(out, nodes, 1.5);
+  }},
+  bass: { name: 'Bass', ic: '🔊', play(n, v, t) {
+    const f = mtof(n), out = gain(0); out.connect(bus);
+    const lp = bq('lowpass', 800, 3);
+    lp.frequency.setValueAtTime(300 + v * 1800 + f * 2, t); lp.frequency.setTargetAtTime(200 + f * 1.5, t, 0.15); lp.connect(out);
+    const a = osc('sawtooth', f, t), b = osc('sine', f, t), bg = gain(0.8);
+    a.connect(lp); b.connect(bg); bg.connect(out);
+    const pk = 0.22 * (0.4 + v * 0.6);
+    env(out, t, pk, 0.004); out.gain.setTargetAtTime(pk * 0.55, t + 0.004, 0.3);
+    return voice(out, [a, b], 0.09);
+  }},
+  drums: { name: 'Drums', ic: '🥁', drum: true, play(n, v, t) {
+    const out = gain(0.9 * (0.3 + v * 0.7)); out.connect(bus);
+    DRUM[DRUMMAP[n % 12]](out, t);
+    const vc = { oneShot: true, release() {}, kill() { try { out.disconnect(); } catch (e) {} } };
+    setTimeout(() => { try { out.disconnect(); } catch (e) {} }, 2500);
+    return vc;
+  }}
+};
+
+
+
+/* ---------- FP-10 data ---------- */
+// From Roland's FP-10 MIDI Implementation (Bank MSB, Bank LSB, Program 1-based)
+const FP10_TONES = [
+  ['Grand Piano 1', 0, 68, 1, '🎹'], ['Grand Piano 2', 16, 67, 1, '🎹'], ['Grand Piano 3', 4, 64, 1, '🎹'], ['Grand Piano 4', 8, 66, 2, '🎹'],
+  ['E. Piano 1', 16, 67, 5, '✨'], ['E. Piano 2', 0, 70, 6, '✨'], ['Harpsichord 1', 0, 66, 7, '🏰'], ['Harpsichord 2', 8, 66, 7, '🏰'],
+  ['Vibraphone', 0, 0, 12, '🔔'], ['Jazz Organ', 0, 70, 19, '🎷'], ['Church Organ', 0, 66, 20, '⛪'], ['Strings 1', 0, 71, 50, '🎻'],
+  ['Strings 2', 0, 64, 49, '🎻'], ['Synth Pad', 0, 64, 90, '🌌'], ['Jazz Scat', 0, 65, 55, '🎤']
+];
+const GM_CATS = {
+  'Piano': ['Acoustic Grand', 'Bright Piano', 'Electric Grand', 'Honky-tonk', 'Electric Piano 1', 'Electric Piano 2', 'Harpsichord', 'Clavi'],
+  'Bells': ['Celesta', 'Glockenspiel', 'Music Box', 'Vibraphone', 'Marimba', 'Xylophone', 'Tubular Bells', 'Dulcimer'],
+  'Organ': ['Drawbar Organ', 'Percussive Organ', 'Rock Organ', 'Church Organ', 'Reed Organ', 'Accordion', 'Harmonica', 'Tango Accordion'],
+  'Guitar': ['Nylon Guitar', 'Steel Guitar', 'Jazz Guitar', 'Clean Guitar', 'Muted Guitar', 'Overdrive Guitar', 'Distortion Guitar', 'Guitar Harmonics'],
+  'Bass': ['Acoustic Bass', 'Finger Bass', 'Pick Bass', 'Fretless Bass', 'Slap Bass 1', 'Slap Bass 2', 'Synth Bass 1', 'Synth Bass 2'],
+  'Strings': ['Violin', 'Viola', 'Cello', 'Contrabass', 'Tremolo Strings', 'Pizzicato', 'Harp', 'Timpani'],
+  'Ensemble': ['Strings Ensemble 1', 'Strings Ensemble 2', 'Synth Strings 1', 'Synth Strings 2', 'Choir Aahs', 'Voice Oohs', 'Synth Voice', 'Orchestra Hit'],
+  'Brass': ['Trumpet', 'Trombone', 'Tuba', 'Muted Trumpet', 'French Horn', 'Brass Section', 'Synth Brass 1', 'Synth Brass 2'],
+  'Sax & Reed': ['Soprano Sax', 'Alto Sax', 'Tenor Sax', 'Baritone Sax', 'Oboe', 'English Horn', 'Bassoon', 'Clarinet'],
+  'Flute': ['Piccolo', 'Flute', 'Recorder', 'Pan Flute', 'Blown Bottle', 'Shakuhachi', 'Whistle', 'Ocarina'],
+  'Synth Lead': ['Square Lead', 'Saw Lead', 'Calliope Lead', 'Chiff Lead', 'Charang Lead', 'Voice Lead', 'Fifths Lead', 'Bass + Lead'],
+  'Synth Pad': ['New Age Pad', 'Warm Pad', 'Polysynth Pad', 'Choir Pad', 'Bowed Pad', 'Metallic Pad', 'Halo Pad', 'Sweep Pad'],
+  'Synth FX': ['Rain', 'Soundtrack', 'Crystal', 'Atmosphere', 'Brightness', 'Goblins', 'Echoes', 'Sci-Fi'],
+  'World': ['Sitar', 'Banjo', 'Shamisen', 'Koto', 'Kalimba', 'Bagpipe', 'Fiddle', 'Shanai'],
+  'Percussion': ['Tinkle Bell', 'Agogo', 'Steel Drums', 'Woodblock', 'Taiko Drum', 'Melodic Tom', 'Synth Drum', 'Reverse Cymbal'],
+  'Sound FX': ['Guitar Fret Noise', 'Breath Noise', 'Seashore', 'Bird Tweet', 'Telephone', 'Helicopter', 'Applause', 'Gunshot']
+};
+const DRUM_KITS = [['Standard Kit', 0], ['Room Kit', 8], ['Power Kit', 16], ['Electronic Kit', 24], ['TR-808 Kit', 25], ['Jazz Kit', 32], ['Brush Kit', 40], ['Orchestra Kit', 48], ['SFX Kit', 56]];
+
+/* ---------- MIDI out ---------- */
+const PANEL_CH = 3;   // ch.4 = the panel tone part (Roland support article)
+const GM_CH = 0;      // ch.1 = the GM2 part we play through
+let midiChar = null, midiOut = null, wq = Promise.resolve();
+
+function send(bytes) {
+  if (midiChar) {
+    const ts = Math.floor(performance.now()) & 0x1FFF;
+    const h = 0x80 | ((ts >> 7) & 0x3F), tl = 0x80 | (ts & 0x7F);
+    let pkt;
+    if (bytes[0] === 0xF0) pkt = [h, tl, ...bytes.slice(0, -1), tl, 0xF7];
+    else pkt = [h, tl, ...bytes];
+    const data = new Uint8Array(pkt);
+    wq = wq.then(() => midiChar.writeValueWithoutResponse ? midiChar.writeValueWithoutResponse(data) : midiChar.writeValue(data))
+           .catch(e => console.warn('BLE write failed', e));
+  } else if (midiOut) {
+    try { midiOut.send(bytes); } catch (e) { console.warn(e); }
+  }
+}
+const isConnected = () => !!(midiChar || midiOut);
+const cc = (ch, n, v) => send([0xB0 | ch, n, v]);
+const pc = (ch, p) => send([0xC0 | ch, p]);
+function bank(ch, msb, lsb, prog) { cc(ch, 0, msb); cc(ch, 32, lsb); pc(ch, prog); }
+
+function rolandDT1(addr, data) {
+  const sum = [...addr, ...data].reduce((a, b) => a + b, 0);
+  send([0xF0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x28, 0x12, ...addr, ...data, (128 - (sum % 128)) % 128, 0xF7]);
+}
+let remoteOn = false;
+function ensureRemote() { if (!remoteOn) { rolandDT1([1, 0, 3, 6], [1]); remoteOn = true; } }
+
+/* ---------- real samples ---------- */
+let gmSource = store.get('gmsrc', 'samples');
+const sampleCache = new Map();
+let sampleSet = null, loadTok = 0;
+function b64ToAb(b) { const bin = atob(b), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+async function loadProgram(p) {
+  if (sampleCache.has(p)) return sampleCache.get(p);
+  initAudio();
+  const r = await fetch('sf/' + p + '.json');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  const b = await Promise.all(j.d.map(x => ctx.decodeAudioData(b64ToAb(x))));
+  const set = { n: j.n, b };
+  sampleCache.set(p, set);
+  if (sampleCache.size > 6) sampleCache.delete(sampleCache.keys().next().value);
+  return set;
+}
+function gmProgram() { return Object.keys(GM_CATS).indexOf(gmSel.cat) * 8 + gmSel.idx; }
+function gmName() { return gmSel.cat === 'Drums' ? DRUM_KITS[gmSel.idx][0] : GM_CATS[gmSel.cat][gmSel.idx]; }
+function updateWhere(extra) {
+  const w = $('gmWhere');
+  if (gmSource === 'piano') w.innerHTML = 'Sound comes from the <b>piano speakers</b>, using the FP-10\'s built-in GM2 sounds. Some of them may sound alike.';
+  else w.innerHTML = 'Sound comes from the <b>phone</b>, using real recorded instruments. ' + (extra || '');
+}
+async function loadSamples() {
+  if (gmSource !== 'samples' || gmSel.cat === 'Drums') { updateWhere(gmSel.cat === 'Drums' ? 'Drums use the built-in phone drum kit.' : ''); return; }
+  const tok = ++loadTok, p = gmProgram();
+  if (!sampleCache.has(p)) updateWhere('<b>Loading ' + gmName() + '…</b>');
+  try {
+    const set = await loadProgram(p);
+    if (tok !== loadTok) return;
+    sampleSet = set; updateWhere('Now: ' + gmName() + '.');
+  } catch (e) {
+    if (tok === loadTok) updateWhere('<span style="color:#ff9a8f">Couldn\'t load ' + gmName() + ' (' + e.message + ').</span>');
+  }
+}
+const SAMPLER = { play(n, v, t) {
+  const out = gain(0); out.connect(bus);
+  if (!sampleSet) return voice(out, [], 0.05);
+  let best = 0;
+  for (let i = 1; i < sampleSet.n.length; i++) if (Math.abs(sampleSet.n[i] - n) < Math.abs(sampleSet.n[best] - n)) best = i;
+  const s = ctx.createBufferSource(); s.buffer = sampleSet.b[best];
+  s.playbackRate.value = Math.pow(2, (n - sampleSet.n[best]) / 12) * (tuneHz / 440);
+  const lp = bq('lowpass', 1500 + v * 14000);
+  s.connect(lp); lp.connect(out); s.start(t);
+  const pk = 0.9 * Math.pow(v, 1.3) + 0.05;
+  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(pk, t + 0.003);
+  return voice(out, [s], 0.3);
+}};
+function setSource(src, user) {
+  gmSource = src; store.set('gmsrc', src);
+  document.querySelectorAll('#srcTabs button').forEach(b => b.classList.toggle('sel', b.dataset.s === src));
+  allOff(); if (user && src === 'samples') initAudio();
+  applyMode(); updateWhere(); if (src === 'samples' && user) loadSamples();
+}
+
+/* ---------- modes ---------- */
+let mode = store.get('mode', 'piano');
+let pianoTone = store.get('ptone', 0);
+let gmSel = store.get('gm', { cat: 'Piano', idx: 0 });
+
+function applyPianoTone() {
+  const t = FP10_TONES[pianoTone];
+  bank(PANEL_CH, t[1], t[2], t[3] - 1);
+}
+function applyGm() {
+  if (gmSel.cat === 'Drums') bank(GM_CH, 120, 0, DRUM_KITS[gmSel.idx][1]);
+  else {
+    const cats = Object.keys(GM_CATS);
+    bank(GM_CH, 121, 0, cats.indexOf(gmSel.cat) * 8 + gmSel.idx);
+  }
+  cc(GM_CH, 7, 110);
+}
+function applyMode() {
+  if (!isConnected()) return;
+  cc(GM_CH, 123, 0); cc(GM_CH, 64, 0);
+  if (mode === 'piano') { cc(PANEL_CH, 7, 100); applyPianoTone(); }
+  else if (mode === 'gm2') { cc(PANEL_CH, 7, 0); if (gmSource === 'piano') applyGm(); }
+  else { cc(PANEL_CH, 7, 0); }
+}
+function setMode(m, userAct) {
+  mode = m; store.set('mode', m);
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('sel', b.dataset.m === m));
+  ['piano', 'gm2', 'phone'].forEach(x => $('pane-' + x).classList.toggle('hide', x !== m));
+  allOff();
+  if ((m === 'phone' || (m === 'gm2' && gmSource === 'samples')) && userAct) initAudio();
+  if (m === 'gm2' && userAct) loadSamples();
+  applyMode();
+}
+
+/* ---------- piano settings ---------- */
+let pvol = store.get('pvol', 100), revType = store.get('rev', 4);
+function sendVolume() { send([0xF0, 0x7F, 0x7F, 0x04, 0x01, 0x00, pvol, 0xF7]); }
+function sendTranspose() { send([0xF0, 0x7F, 0x7F, 0x04, 0x04, 0x00, 0x40 + transpose, 0xF7]); }
+function sendTuning() {
+  const cents = 1200 * Math.log2(tuneHz / 440);
+  const v = Math.max(0, Math.min(16383, Math.round(8192 + cents / 100 * 8192)));
+  send([0xF0, 0x7F, 0x7F, 0x04, 0x03, v & 0x7F, v >> 7, 0xF7]);
+}
+function sendReverb() { send([0xF0, 0x7F, 0x7F, 0x04, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, revType, 0xF7]); }
+function sendAllSettings() { sendVolume(); sendTranspose(); sendTuning(); sendReverb(); }
+
+function showSettings() {
+  $('pvol').value = pvol; $('pvolV').textContent = pvol;
+  $('tr').textContent = (transpose > 0 ? '+' : '') + transpose;
+  $('trKey').textContent = 'C → ' + NAMES[((transpose % 12) + 12) % 12];
+  $('tune').value = Math.round(tuneHz * 10); $('tuneV').textContent = tuneHz.toFixed(1) + ' Hz';
+  $('revType').value = revType;
+}
+
+/* ---------- notes, pedal, phone voices ---------- */
+let current = store.get('inst', 'ep'); if (!INST[current]) current = 'ep';
+let split = false, octave = 0, pedal = false;
+const active = new Map(), sustained = new Set(), all = [], keyEls = {}, touched = new Set(), held = new Set();
+
+function forget(v) { const i = all.indexOf(v); if (i >= 0) all.splice(i, 1); }
+function rel(v) { v.release(ctx.currentTime); setTimeout(() => forget(v), 2500); }
+
+function synthOn(n, vel, instOverride) {
+  initAudio();
+  const inst = instOverride || INST[(split && n < 60) ? 'bass' : current];
+  const t = ctx.currentTime;
+  const old = active.get(n); if (old) { rel(old); active.delete(n); }
+  sustained.forEach(sv => { if (sv.key === n) { rel(sv); sustained.delete(sv); } });
+  let pn = inst.drum ? n : n + (instOverride ? 0 : octave * 12) + transpose;
+  pn = Math.max(12, Math.min(120, pn));
+  const v = inst.play(pn, vel, t); v.key = n;
+  if (v.oneShot) setTimeout(() => forget(v), 2500); else active.set(n, v);
+  all.push(v);
+  while (all.length > 48) {
+    const o = all.shift(); o.kill(); sustained.delete(o);
+    for (const [k, vv] of active) if (vv === o) active.delete(k);
+  }
+}
+function synthOff(n) {
+  const v = active.get(n);
+  if (v) { active.delete(n); if (pedal) sustained.add(v); else rel(v); }
+}
+
+// fromPiano: the note came from the piano's own keys (the piano already sounds it in Piano-tone mode)
+function noteOn(n, vel, fromPiano) {
+  held.add(n); setKey(n, true); updateNotes();
+  const useSamples = mode === 'gm2' && gmSource === 'samples';
+  if (mode === 'phone') synthOn(n, vel);
+  else if (useSamples) { if (!sampleSet && gmSel.cat !== 'Drums') loadSamples(); synthOn(n, vel, gmSel.cat === 'Drums' ? INST.drums : SAMPLER); }
+  else if (mode === 'gm2') send([0x90 | GM_CH, n, Math.max(1, Math.round(vel * 127))]);
+  else if (!fromPiano) send([0x90 | PANEL_CH, n, Math.max(1, Math.round(vel * 127))]);
+}
+function noteOff(n, fromPiano) {
+  held.delete(n); setKey(n, false); updateNotes();
+  if (mode === 'phone' || (mode === 'gm2' && gmSource === 'samples')) synthOff(n);
+  else if (mode === 'gm2') send([0x80 | GM_CH, n, 0]);
+  else if (!fromPiano) send([0x80 | PANEL_CH, n, 0]);
+}
+function setPedal(on, fromPiano) {
+  pedal = on; $('pedal').textContent = on ? 'down' : 'up';
+  if (mode === 'gm2' && gmSource === 'piano' && fromPiano) cc(GM_CH, 64, on ? 127 : 0);
+  if (!on && ctx) { sustained.forEach(rel); sustained.clear(); }
+}
+function allOff() {
+  if (ctx) { active.forEach(rel); active.clear(); sustained.forEach(rel); sustained.clear(); }
+  held.clear();
+  Object.values(keyEls).forEach(el => el.classList.remove('down'));
+  updateNotes();
+}
+
+/* ---------- MIDI in ---------- */
+let flashT;
+function flash() { const d = $('dot'); d.classList.add('flash'); clearTimeout(flashT); flashT = setTimeout(() => d.classList.remove('flash'), 90); }
+
+function handleMidi(st, d1, d2) {
+  const type = st & 0xF0;
+  if (type === 0x90 && d2 > 0) { noteOn(d1, Math.pow(d2 / 127, 0.85), true); flash(); }
+  else if (type === 0x80 || (type === 0x90 && d2 === 0)) noteOff(d1, true);
+  else if (type === 0xB0) {
+    if (d1 === 64) setPedal(d2 >= 64, true);
+    else if (d1 === 120 || d1 === 123) allOff();
+  }
+}
+
+const dlen = s => s < 0x80 ? 0 : s < 0xC0 ? 2 : s < 0xE0 ? 1 : s < 0xF0 ? 2 : 0;
+let bleRun = 0, bleSysex = false;
+function parseBLE(d) {
+  if (d.length < 2) return;
+  let i = 1;
+  while (i < d.length) {
+    let b = d[i];
+    if (bleSysex) {
+      if (b === 0xF7) bleSysex = false;
+      else if ((b & 0x80) && d[i + 1] === 0xF7) { bleSysex = false; i++; }
+      i++; continue;
+    }
+    if (b & 0x80) {
+      i++; if (i >= d.length) break;
+      b = d[i];
+      if (b & 0x80) {
+        if (b === 0xF0) { bleSysex = true; i++; continue; }
+        if (b >= 0xF8) { i++; continue; }
+        bleRun = b; i++;
+      }
+    }
+    const len = dlen(bleRun);
+    if (!len) { i++; continue; }
+    if (i + len > d.length) break;
+    const a = d[i], c = len > 1 ? d[i + 1] : 0;
+    if ((a & 0x80) || (c & 0x80)) { i++; continue; }
+    handleMidi(bleRun, a, c);
+    i += len;
+  }
+}
+
+/* ---------- connection ---------- */
+const SVC = '03b80e5a-ede8-4b33-a751-6ce34ec4c700';
+const CHR = '7772e5db-3868-4112-a1a9-f2669d106bf3';
+let device, wakeLock;
+
+function status(main, small, err) {
+  const s = $('status'); s.className = 'status' + (err ? ' err' : '');
+  s.innerHTML = ''; s.append(main);
+  if (small) { const sm = document.createElement('small'); sm.textContent = small; s.append(sm); }
+}
+function connected(name, how) {
+  $('dot').classList.add('on');
+  status('Connected: ' + name, 'via ' + how + ' · pick a sound and play!');
+  $('btConnect').textContent = how === 'Bluetooth' ? 'Connected' : 'Connect Bluetooth';
+  remoteOn = false;
+  sendAllSettings(); applyMode();
+  if (mode === 'gm2' && gmSource === 'samples') { initAudio(); loadSamples(); }
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {}); } catch (e) {}
+}
+function handleErr(e) {
+  const msg = (e && e.message) || String(e);
+  if (e && e.name === 'NotFoundError' && /cancel/i.test(msg)) { status('No piano picked', 'Tap Connect and choose the FP-10 from the list.'); return; }
+  if (e && e.name === 'NotFoundError') { status('Piano not found', 'Check the FP-10 is on with Bluetooth enabled, and that Android Bluetooth and Location are on.', true); return; }
+  if (/policy|disallow|not allowed|SecurityError/i.test(msg + (e && e.name))) {
+    status('Bluetooth is blocked here', 'This viewer blocks Bluetooth. Open the page directly in Chrome (e.g. hosted on GitHub Pages).', true); return;
+  }
+  status('Connection failed', msg, true);
+}
+
+async function gattConnect() {
+  status('Connecting to ' + (device.name || 'piano') + '…', '');
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(SVC);
+  const ch = await svc.getCharacteristic(CHR);
+  ch.addEventListener('characteristicvaluechanged', e => {
+    const dv = e.target.value;
+    parseBLE(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
+  });
+  await ch.startNotifications();
+  midiChar = ch;
+  connected(device.name || 'FP-10', 'Bluetooth');
+}
+
+async function connectBT() {
+  if (device && device.gatt.connected) return;
+  if (device) { try { await gattConnect(); } catch (e) { handleErr(e); } return; }
+  if (!navigator.bluetooth) { status('Bluetooth not available here', 'Open this page in Chrome on Android, not inside another app\'s browser.', true); return; }
+  try {
+    status('Looking for your piano…', 'Pick the FP-10 in the list that pops up.');
+    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
+    device.addEventListener('gattserverdisconnected', () => {
+      midiChar = null; $('dot').classList.remove('on'); allOff(); setPedal(false);
+      status('Disconnected', 'Tap Reconnect to get the piano back.', true);
+      $('btConnect').textContent = 'Reconnect';
+    });
+    await gattConnect();
+  } catch (e) { handleErr(e); }
+}
+
+async function connectUSB() {
+  if (!navigator.requestMIDIAccess) { status('MIDI not available here', 'Open this page in Chrome.', true); return; }
+  try {
+    const acc = await navigator.requestMIDIAccess({ sysex: true });
+    const hook = () => {
+      const names = [];
+      acc.inputs.forEach(inp => {
+        inp.onmidimessage = e => { const d = e.data; if (d[0] >= 0xF0) return; handleMidi(d[0], d[1] || 0, d[2] || 0); };
+        names.push(inp.name);
+      });
+      midiOut = null; acc.outputs.forEach(o => { if (!midiOut) midiOut = o; });
+      if (names.length) connected(names.join(', '), 'USB');
+      else status('No MIDI device found', 'Plug the FP-10\'s USB port into your phone (USB-B to USB-C cable), then tap again.', true);
+    };
+    hook(); acc.onstatechange = hook;
+  } catch (e) { handleErr(e); }
+}
+
+/* ---------- UI ---------- */
+function setKey(n, on) { const el = keyEls[n]; if (el) el.classList.toggle('down', on); }
+function updateNotes() {
+  const h = [...held].sort((a, b) => a - b);
+  $('notes').textContent = h.length ? h.slice(0, 6).map(noteName).join(' ') + (h.length > 6 ? ' …' : '') : '—';
+}
+function selIn(container, i) { container.querySelectorAll('.inst').forEach((x, j) => x.classList.toggle('sel', j === i)); }
+
+function buildPianoGrid() {
+  const g = $('pianoGrid');
+  FP10_TONES.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.className = 'inst' + (i === pianoTone ? ' sel' : '');
+    b.innerHTML = '<span class="ic">' + t[4] + '</span>' + t[0];
+    b.onclick = () => { pianoTone = i; store.set('ptone', i); selIn(g, i); if (mode === 'piano') applyPianoTone(); };
+    g.appendChild(b);
+  });
+}
+
+function buildGm() {
+  const cats = [...Object.keys(GM_CATS), 'Drums'];
+  const chips = $('gmCats');
+  let viewCat = gmSel.cat;
+  const renderList = () => {
+    chips.querySelectorAll('button').forEach(c => c.classList.toggle('sel', c.dataset.c === viewCat));
+    const g = $('gmGrid'); g.innerHTML = '';
+    const items = viewCat === 'Drums' ? DRUM_KITS.map(k => k[0]) : GM_CATS[viewCat];
+    items.forEach((name, i) => {
+      const b = document.createElement('button');
+      const num = viewCat === 'Drums' ? 'Kit' : '#' + (Object.keys(GM_CATS).indexOf(viewCat) * 8 + i + 1);
+      b.className = 'inst' + (gmSel.cat === viewCat && gmSel.idx === i ? ' sel' : '');
+      b.innerHTML = '<span class="num">' + num + '</span>' + name;
+      b.onclick = () => { gmSel = { cat: viewCat, idx: i }; store.set('gm', gmSel); selIn(g, i); if (mode === 'gm2') { if (gmSource === 'piano') applyGm(); else { initAudio(); loadSamples(); } } };
+      g.appendChild(b);
+    });
+  };
+  cats.forEach(c => {
+    const b = document.createElement('button'); b.textContent = c; b.dataset.c = c;
+    b.onclick = () => { viewCat = c; renderList(); };
+    chips.appendChild(b);
+  });
+  renderList();
+}
+
+function buildGrid() {
+  const g = $('grid');
+  Object.entries(INST).forEach(([k, inst]) => {
+    const b = document.createElement('button');
+    b.className = 'inst' + (k === current ? ' sel' : ''); b.dataset.k = k;
+    b.innerHTML = '<span class="ic">' + inst.ic + '</span>' + inst.name;
+    b.onclick = () => {
+      initAudio(); current = k; store.set('inst', k);
+      g.querySelectorAll('.inst').forEach(x => x.classList.toggle('sel', x.dataset.k === k));
+    };
+    g.appendChild(b);
+  });
+}
+
+function buildKb() {
+  const kb = $('kb'); let x = 0; const BL = [1, 3, 6, 8, 10];
+  for (let n = 21; n <= 108; n++) {
+    const pc_ = n % 12, el = document.createElement('div');
+    if (BL.includes(pc_)) { el.className = 'k'; el.style.left = (x - 10) + 'px'; }
+    else {
+      el.className = 'w'; el.style.left = x + 'px';
+      if (pc_ === 0) el.innerHTML = '<span class="nm">' + noteName(n) + '</span>';
+      x += 30;
+    }
+    el.addEventListener('pointerdown', e => { e.preventDefault(); touched.add(n); noteOn(n, 0.75, false); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, () => { if (touched.delete(n)) noteOff(n, false); }));
+    kb.appendChild(el); keyEls[n] = el;
+  }
+  kb.style.width = x + 'px';
+  requestAnimationFrame(() => {
+    const w = $('kbwrap'); w.scrollLeft = parseInt(keyEls[60].style.left) - w.clientWidth / 2 + 60;
+  });
+}
+
+/* wiring */
+$('btConnect').onclick = connectBT;
+$('usbConnect').onclick = connectUSB;
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setMode(b.dataset.m, true));
+document.querySelectorAll('#srcTabs button').forEach(b => b.onclick = () => setSource(b.dataset.s, true));
+
+$('vol').oninput = e => { if (master) master.gain.setTargetAtTime(e.target.value / 100, ctx.currentTime, 0.02); };
+$('rev').oninput = e => { if (revGain) revGain.gain.setTargetAtTime(e.target.value / 100 * 0.6, ctx.currentTime, 0.02); };
+const setOct = d => { octave = Math.max(-2, Math.min(2, octave + d)); $('oct').textContent = (octave > 0 ? '+' : '') + octave; };
+$('octDn').onclick = () => setOct(-1);
+$('octUp').onclick = () => setOct(1);
+$('split').onclick = () => { split = !split; $('split').classList.toggle('on', split); $('split').setAttribute('aria-checked', split); };
+
+let volT;
+$('pvol').oninput = e => { pvol = +e.target.value; store.set('pvol', pvol); showSettings(); clearTimeout(volT); volT = setTimeout(sendVolume, 40); };
+const setTr = d => { allOff(); transpose = Math.max(-12, Math.min(12, transpose + d)); store.set('tr', transpose); showSettings(); sendTranspose(); };
+$('trDn').onclick = () => setTr(-1);
+$('trUp').onclick = () => setTr(1);
+let tuneT;
+$('tune').oninput = e => { tuneHz = e.target.value / 10; store.set('tune', tuneHz); showSettings(); clearTimeout(tuneT); tuneT = setTimeout(sendTuning, 40); };
+$('revType').onchange = e => { revType = +e.target.value; store.set('rev', revType); sendReverb(); };
+$('resetSet').onclick = () => {
+  pvol = 100; transpose = 0; tuneHz = 440; revType = 4;
+  ['pvol', 'tr', 'tune', 'rev'].forEach(k => store.set(k, { pvol: 100, tr: 0, tune: 440, rev: 4 }[k]));
+  showSettings(); sendAllSettings();
+};
+
+$('touch').onchange = e => { ensureRemote(); rolandDT1([1, 0, 2, 0x1D], [+e.target.value]); };
+$('brill').onchange = e => { ensureRemote(); rolandDT1([1, 0, 2, 0x1C], [0x40 + (+e.target.value)]); };
+let bpmT;
+$('bpm').oninput = e => {
+  const v = +e.target.value; $('bpmV').textContent = v + ' bpm';
+  clearTimeout(bpmT); bpmT = setTimeout(() => { ensureRemote(); rolandDT1([1, 0, 3, 9], [v >> 7, v & 0x7F]); }, 80);
+};
+$('metro').onclick = () => { ensureRemote(); rolandDT1([1, 0, 5, 9], [0]); };
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    if (ctx && ctx.state !== 'running') ctx.resume();
+    if (device && device.gatt.connected && navigator.wakeLock) navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
+  }
+});
+
+transpose = store.get('tr', 0); tuneHz = store.get('tune', 440);
+buildPianoGrid(); buildGm(); buildGrid(); buildKb(); showSettings(); setSource(gmSource, false); setMode(mode);
+</script>
+</body>
+</html>
