@@ -100,6 +100,7 @@ select{flex:1;background:#26222b;color:var(--text);border:1px solid var(--line);
       <button class="btn" id="btConnect">Connect Bluetooth</button>
       <button class="btn ghost" id="usbConnect">USB cable</button>
     </div>
+    <div class="ctl hide" id="portRow" style="margin-top:12px"><span>USB device</span><select id="portSel"></select></div>
   </div>
 
   <div class="tabs" id="tabs">
@@ -918,21 +919,38 @@ async function connectBT() {
   } catch (e) { handleErr(e); }
 }
 
+let midiAcc = null, usbPort = store.get('usbport', '');
+const PIANO_RE = /roland|fp-?10|digital piano/i;
+function useUsbPort(name, announce) {
+  const outs = []; midiAcc.outputs.forEach(o => outs.push(o));
+  const out = outs.find(o => o.name === name) || outs.find(o => PIANO_RE.test(o.name)) || null;
+  midiAcc.inputs.forEach(i => { i.onmidimessage = null; });
+  midiOut = out;
+  let inp = null;
+  if (out) midiAcc.inputs.forEach(i => { if (!inp && i.name === out.name) inp = i; });
+  if (!inp) midiAcc.inputs.forEach(i => { if (!inp && PIANO_RE.test(i.name)) inp = i; });
+  if (inp) inp.onmidimessage = e => { const d = e.data; if (d[0] >= 0xF0) return; handleMidi(d[0], d[1] || 0, d[2] || 0); };
+  const sel = $('portSel'); sel.innerHTML = '';
+  outs.forEach(o => { const op = document.createElement('option'); op.value = o.name; op.textContent = o.name; sel.appendChild(op); });
+  $('portRow').classList.toggle('hide', outs.length < 2);
+  if (out) {
+    sel.value = out.name; usbPort = out.name; store.set('usbport', usbPort);
+    if (announce) connected(out.name, 'USB');
+  } else {
+    midiOut = null; $('dot').classList.remove('on');
+    status('Piano not found', 'Turn the FP-10 on and plug it in with USB. If it has a different name, pick it in the list below.', true);
+  }
+}
 async function connectUSB() {
   if (!navigator.requestMIDIAccess) { status('MIDI not available here', 'Open this page in Chrome.', true); return; }
   try {
-    const acc = await navigator.requestMIDIAccess({ sysex: true });
-    const hook = () => {
-      const names = [];
-      acc.inputs.forEach(inp => {
-        inp.onmidimessage = e => { const d = e.data; if (d[0] >= 0xF0) return; handleMidi(d[0], d[1] || 0, d[2] || 0); };
-        names.push(inp.name);
-      });
-      midiOut = null; acc.outputs.forEach(o => { if (!midiOut) midiOut = o; });
-      if (names.length) connected(names.join(', '), 'USB');
-      else status('No MIDI device found', 'Plug the FP-10\'s USB port into your phone (USB-B to USB-C cable), then tap again.', true);
+    midiAcc = await navigator.requestMIDIAccess({ sysex: true });
+    useUsbPort(usbPort, true);
+    midiAcc.onstatechange = () => {
+      const had = midiOut && midiOut.state === 'connected';
+      if (had) return;
+      useUsbPort(usbPort, true);
     };
-    hook(); acc.onstatechange = hook;
   } catch (e) { handleErr(e); }
 }
 
@@ -1028,6 +1046,7 @@ function buildKb() {
 /* wiring */
 $('btConnect').onclick = () => { initAudio(); connectBT(); };
 $('usbConnect').onclick = () => { initAudio(); connectUSB(); };
+$('portSel').onchange = e => { allOff(); usbPort = e.target.value; useUsbPort(usbPort, true); };
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (ctx && ctx.state !== 'running') ctx.resume(); }, true));
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setMode(b.dataset.m, true));
 document.querySelectorAll('#srcTabs button').forEach(b => b.onclick = () => setSource(b.dataset.s, true));
