@@ -464,8 +464,11 @@ async function loadProgram(p) {
   const r = await fetch('sf/' + p + '.json');
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const j = await r.json();
-  const b = await Promise.all(j.d.map(x => ctx.decodeAudioData(b64ToAb(x))));
-  const set = { n: j.n, b };
+  const res = await Promise.allSettled(j.d.map(x => ctx.decodeAudioData(b64ToAb(x))));
+  const n = [], b = [];
+  res.forEach((r, i) => { if (r.status === 'fulfilled' && r.value.duration > 0.05) { n.push(j.n[i]); b.push(r.value); } });
+  if (!b.length) throw new Error('no playable samples');
+  const set = { n, b };
   sampleCache.set(p, set);
   if (sampleCache.size > 6) sampleCache.delete(sampleCache.keys().next().value);
   return set;
@@ -820,8 +823,9 @@ function buildKb() {
 }
 
 /* wiring */
-$('btConnect').onclick = connectBT;
-$('usbConnect').onclick = connectUSB;
+$('btConnect').onclick = () => { initAudio(); connectBT(); };
+$('usbConnect').onclick = () => { initAudio(); connectUSB(); };
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (ctx && ctx.state !== 'running') ctx.resume(); }, true));
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setMode(b.dataset.m, true));
 document.querySelectorAll('#srcTabs button').forEach(b => b.onclick = () => setSource(b.dataset.s, true));
 
