@@ -69,9 +69,24 @@ select{flex:1;background:#26222b;color:var(--text);border:1px solid var(--line);
 .where{font-size:12px;color:var(--mute);margin:-4px 0 10px}
 .where b{color:var(--acc)}
 .exp{border-style:dashed}
+.loader{position:fixed;inset:0;background:rgba(18,16,20,.97);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}
+.loader.hide{display:none}
+.lbox{max-width:420px;width:100%;text-align:center}
+.lbox h2{margin:0 0 6px;font-size:22px}
+.bar{height:12px;background:#2e2934;border-radius:6px;overflow:hidden;margin:16px 0 10px}
+#lbar{height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .2s}
 </style>
 </head>
 <body>
+<div class="loader" id="loader">
+  <div class="lbox">
+    <h2>🎹 Loading sounds</h2>
+    <p id="ltext">Getting ready…</p>
+    <div class="bar"><div id="lbar"></div></div>
+    <p class="tip" id="lsub">About 120 MB the first time, so use Wi-Fi. After that the app opens instantly.</p>
+    <button class="btn ghost sm" id="lskip" style="margin-top:10px">Skip: load each sound when I pick it</button>
+  </div>
+</div>
 <div class="wrap">
   <h1>FP-10 Instrument Box</h1>
   <p class="sub">Switch your FP-10's sounds and settings from your phone.</p>
@@ -539,13 +554,54 @@ INST.bass808 = { name: '808 Bass', ic: '🔊', play(n, v, t) {
   return voice(out, [o], 0.12);
 }};
 
+const SOUND_CACHE = 'fp10-sounds-v2';
+const ALL_PACKS = [...PRO.map(p => 'pro/' + p[0] + '.bin'), ...Array.from({ length: 128 }, (_, i) => 'sf2/' + i + '.bin')];
+async function openStore() { try { return window.caches ? await caches.open(SOUND_CACHE) : null; } catch (e) { return null; } }
+async function getPackBytes(url) {
+  const c = await openStore();
+  if (c) { try { const hit = await c.match(url); if (hit) return await hit.arrayBuffer(); } catch (e) {} }
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (c) { try { await c.put(url, r.clone()); } catch (e) {} }
+  return await r.arrayBuffer();
+}
+async function preloadAll() {
+  const box = $('loader'), c = await openStore();
+  if (!c) { box.classList.add('hide'); return; }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+  let have;
+  try { have = new Set((await c.keys()).map(r => new URL(r.url).pathname.split('/').slice(-2).join('/'))); } catch (e) { have = new Set(); }
+  const todo = ALL_PACKS.filter(u => !have.has(u));
+  if (!todo.length) { box.classList.add('hide'); return; }
+  let done = ALL_PACKS.length - todo.length, mb = 0, skipped = false, failed = 0;
+  $('lskip').onclick = () => { skipped = true; box.classList.add('hide'); };
+  const show = () => {
+    $('lbar').style.width = (done / ALL_PACKS.length * 100) + '%';
+    $('ltext').textContent = done + ' / ' + ALL_PACKS.length + ' instruments · ' + mb.toFixed(0) + ' MB downloaded' + (failed ? ' · ' + failed + ' failed' : '');
+  };
+  show();
+  let next = 0;
+  const worker = async () => {
+    while (next < todo.length) {
+      const u = todo[next++];
+      try {
+        const r = await fetch(u);
+        if (!r.ok) throw new Error();
+        const b = await r.clone().arrayBuffer(); mb += b.byteLength / 1048576;
+        await c.put(u, r);
+      } catch (e) { failed++; }
+      done++; if (!skipped) show();
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  box.classList.add('hide');
+}
+
 const packCache = new Map();
 async function loadPack(url) {
   if (packCache.has(url)) return packCache.get(url);
   initAudio();
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const ab = await r.arrayBuffer(), dv = new DataView(ab);
+  const ab = await getPackBytes(url), dv = new DataView(ab);
   if (String.fromCharCode(...new Uint8Array(ab, 0, 4)) !== 'FPS1') throw new Error('bad file');
   const cnt = dv.getUint16(4, true), jobs = [];
   for (let i = 0; i < cnt; i++) {
@@ -557,7 +613,7 @@ async function loadPack(url) {
   if (!b.length) throw new Error('no playable samples');
   const set = { n, b };
   packCache.set(url, set);
-  if (packCache.size > 8) packCache.delete(packCache.keys().next().value);
+  if (packCache.size > 12) packCache.delete(packCache.keys().next().value);
   return set;
 }
 
@@ -1015,6 +1071,7 @@ document.addEventListener('visibilitychange', () => {
 
 transpose = store.get('tr', 0); tuneHz = store.get('tune', 440);
 buildPianoGrid(); buildGm(); buildGrid(); buildKb(); showSettings(); setSource(gmSource, false); setMode(mode); updateWhere();
+preloadAll();
 </script>
 </body>
 </html>
