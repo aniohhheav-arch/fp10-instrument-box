@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FP-10 Instrument Box</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#121014">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#121014;--panel:#1d1a21;--line:#2e2934;--text:#f3eef7;--mute:#a59fae;--acc:#ffb347;--acc2:#ff6f61;--ok:#5fd38d}
@@ -89,7 +93,7 @@ select{flex:1;background:#26222b;color:var(--text);border:1px solid var(--line);
 </div>
 <div class="wrap">
   <h1>FP-10 Instrument Box</h1>
-  <p class="sub">Switch your FP-10's sounds and settings from your phone.</p>
+  <p class="sub">Sounds, backing band, looper, recorder and lessons for your FP-10.</p>
 
   <div class="card">
     <div class="conn">
@@ -223,7 +227,7 @@ function initAudio() {
   const conv = ctx.createConvolver(); conv.buffer = makeImpulse(2.4);
   revGain = ctx.createGain(); revGain.gain.value = $('rev').value / 100 * 0.6;
   revGain.connect(conv); conv.connect(master);
-  bus = ctx.createGain(); bus.connect(master); bus.connect(revGain);
+  bus = ctx.createGain(); const fxOut = typeof buildFx === 'function' ? buildFx(bus) : bus; fxOut.connect(master); fxOut.connect(revGain);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const nd = noiseBuf.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
@@ -789,7 +793,7 @@ function noteOn(n, vel, fromPiano) {
   if (mode === 'phone') synthOn(n, vel);
   else if (mode === 'gm2') {
     initAudio(); ensureLayerBus();
-    [0, 1].forEach(i => {
+    layersFor(n).forEach(i => {
       const inst = instFor(i);
       if (inst === 'piano') send([0x90 | GM_CH, n, Math.max(1, Math.round(vel * 127))]);
       else if (inst) withBus(layerBus[i], () => synthOn(n, vel, inst, i));
@@ -821,8 +825,8 @@ function flash() { const d = $('dot'); d.classList.add('flash'); clearTimeout(fl
 
 function handleMidi(st, d1, d2) {
   const type = st & 0xF0;
-  if (type === 0x90 && d2 > 0) { noteOn(d1, Math.pow(d2 / 127, 0.85), true); flash(); }
-  else if (type === 0x80 || (type === 0x90 && d2 === 0)) noteOff(d1, true);
+  if (type === 0x90 && d2 > 0) { inputOn(d1, Math.pow(d2 / 127, 0.85), true); flash(); }
+  else if (type === 0x80 || (type === 0x90 && d2 === 0)) inputOff(d1, true);
   else if (type === 0xB0) {
     if (d1 === 64) setPedal(d2 >= 64, true);
     else if (d1 === 120 || d1 === 123) allOff();
@@ -1033,8 +1037,8 @@ function buildKb() {
       if (pc_ === 0) el.innerHTML = '<span class="nm">' + noteName(n) + '</span>';
       x += 30;
     }
-    el.addEventListener('pointerdown', e => { e.preventDefault(); touched.add(n); noteOn(n, 0.75, false); });
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, () => { if (touched.delete(n)) noteOff(n, false); }));
+    el.addEventListener('pointerdown', e => { e.preventDefault(); touched.add(n); inputOn(n, 0.75, false); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, () => { if (touched.delete(n)) inputOff(n, false); }));
     kb.appendChild(el); keyEls[n] = el;
   }
   kb.style.width = x + 'px';
@@ -1092,5 +1096,10 @@ transpose = store.get('tr', 0); tuneHz = store.get('tune', 440);
 buildPianoGrid(); buildGm(); buildGrid(); buildKb(); showSettings(); setSource(gmSource, false); setMode(mode); updateWhere();
 preloadAll();
 </script>
+<script src="js/core.js"></script>
+<script src="js/band.js"></script>
+<script src="js/studio.js"></script>
+<script src="js/learn.js"></script>
+<script src="js/extras.js"></script>
 </body>
 </html>
